@@ -1,0 +1,10 @@
+langchain
+langgraph
+groq
+tavily-python
+python-dotenv
+streamlit
+sendgrid
+apscheduler
+openai
+langchain-core
