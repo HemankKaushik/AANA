@@ -83,6 +83,3 @@ python scheduler.py
 * [x] **M5:** Multi-threaded Cloud Deployment (Render + Streamlit Cloud)
 * [x] **M6:** Security & Lifecycle Optimizations (Connection Pooling, Ghost Sweeper)
 
-```
-
-```
