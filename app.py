@@ -4,10 +4,35 @@ from dotenv import load_dotenv
 from email_dispatch import send_email_digest
 from preferences import save_preferences, load_preferences, delete_user_profile
 from agent import run_news_pipeline
+from preferences import save_preferences, load_preferences, delete_user_profile, update_last_active
 
 load_dotenv()
+if "action" in st.query_params and st.query_params["action"] == "unsubscribe":
+    unsub_email = st.query_params.get("email")
+    
+    st.title("AANA Account Management")
+    
+    if unsub_email:
+        st.warning(f"Are you sure you want to permanently delete the automated schedule for **{unsub_email}**?")
+        
+        col1, col2 = st.columns(2)
+        with col1:
+            if st.button("Yes, permanently unsubscribe me", type="primary"):
+                if delete_user_profile(unsub_email):
+                    st.success("Your profile and schedules have been completely deleted. You will no longer receive emails.")
+                    st.query_params.clear() # Clear URL so refresh doesn't trigger it again
+                else:
+                    st.error("Something went wrong. Please try again.")
+        with col2:
+            if st.button("Cancel & Return to Login"):
+                st.query_params.clear()
+                st.rerun()
+    else:
+        st.error("Invalid or missing unsubscribe link.")
+        
+    st.stop() # This halts the script .Nobody sees the login wall or dashboard if they are on this page.
 
-# --- THE LOGIN WALL ---
+#  THE LOGIN WALL 
 if "user_email" not in st.session_state:
     st.title("AANA Login")
     st.subheader("Access your personalized AI News Agent")
@@ -16,12 +41,13 @@ if "user_email" not in st.session_state:
     if st.button("Login / Register"):
         if "@" in login_email and "." in login_email:
             st.session_state.user_email = login_email
+            update_last_active(login_email)
             st.rerun() 
         else:
             st.error("Please enter a valid email address.")
     st.stop() 
 
-# --- THE DASHBOARD ---
+#  THE DASHBOARD 
 user_email = st.session_state.user_email
 
 # Pull this specific user's data from the cloud database
@@ -34,12 +60,12 @@ FREQUENCY_DAYS = {
     "Monthly": 30
 }
 
-# --- Main Header & Warning ---
+#  Main Header & Warning 
 st.title("AANA Management Console")
 st.markdown("Configure your automated target keywords and delivery schedule below.")
 st.info("**Notice:** If your scheduled digest does not arrive in your primary inbox, please check your spam folder and add the sender address to your verified contacts.")
 
-# --- Clean Multi-Column Layout (Moved from Sidebar) ---
+# Clean Multi-Column Layout (Moved from Sidebar) 
 st.markdown("### Subscription Parameters")
 
 col1, col2 = st.columns(2)
@@ -104,7 +130,7 @@ else:
 
 st.markdown("---")
 
-# --- Action Buttons ---
+#  Action Buttons 
 button_col1, button_col2 = st.columns(2)
 
 with button_col1:
@@ -124,7 +150,7 @@ with button_col1:
 with button_col2:
     run_button = st.button("🚀 Get AI News Now", use_container_width=True)
 
-# --- Sidebar Account Management ---
+#  Sidebar Account Management 
 with st.sidebar:
     st.markdown(f"**Logged in as:**\n{user_email}")
     if st.button("Log Out", use_container_width=True):
@@ -140,7 +166,7 @@ with st.sidebar:
             del st.session_state.user_email
             st.rerun()
 
-# --- Manual Trigger Logic ---
+#  Manual Trigger Logic 
 if run_button:
     if not keywords.strip():
         st.error("Please enter at least one keyword.")

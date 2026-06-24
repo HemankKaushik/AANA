@@ -7,7 +7,7 @@ load_dotenv()
 
 def send_email_digest(to_email, articles):
 
-    # Build articles HTML — each with its own summary and tags
+    
     articles_html = ""
     for i, article in enumerate(articles):
         tags_html = ""
@@ -24,6 +24,9 @@ def send_email_digest(to_email, articles):
         </div>
         """
 
+    
+    STREAMLIT_APP_URL = "https://aana-dashboard.streamlit.app/"
+
     html_content = f"""
     <html>
     <body style="font-family:Arial, sans-serif; padding:25px; max-width:700px;">
@@ -32,8 +35,11 @@ def send_email_digest(to_email, articles):
         </h1>
         <p style="color:#666;">Here are your personalized AI news updates:</p>
         {articles_html}
-        <hr style="margin-top:30px;"/>
-        <p style="color:#999; font-size:12px;">Sent by AANA - Autonomous AI News Agent</p>
+        <hr style="margin-top:30px; border:none; border-top:1px solid #eaeaea;"/>
+        <p style="color:#999; font-size:12px; text-align:center;">
+            Sent by AANA - Autonomous AI News Agent<br><br>
+            <a href="{STREAMLIT_APP_URL}/?action=unsubscribe&email={to_email}" style="color:#888888; text-decoration:underline;">Click here to safely unsubscribe</a>
+        </p>
     </body>
     </html>
     """
@@ -41,7 +47,7 @@ def send_email_digest(to_email, articles):
     message = Mail(
         from_email=os.getenv("SENDGRID_FROM_EMAIL"),
         to_emails=to_email,
-        subject=" AANA — Your AI News Digest",
+        subject="AANA — Your AI News Digest",
         html_content=html_content
     )
 

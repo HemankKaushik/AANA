@@ -6,10 +6,9 @@ from dotenv import load_dotenv
 
 load_dotenv()
 
-# ==========================================
-# 🛑 ENTERPRISE CONNECTION POOL (FAIL-SAFE)
-# ==========================================
-# 1. Initialize it as None first so the script doesn't crash if Neon is asleep!
+
+# ENTERPRISE CONNECTION POOL (FAIL-SAFE)
+# Initialize it as None first so the script doesn't crash if Neon is asleep!
 db_pool = None
 
 try:
@@ -17,13 +16,12 @@ try:
     db_url = os.environ.get("DATABASE_URL")
     if db_url:
         db_pool = psycopg2.pool.SimpleConnectionPool(1, 10, db_url)
-        print("✅ PostgreSQL Connection pool created successfully.")
+        print(" PostgreSQL Connection pool created successfully.")
     else:
-        print("⚠️ DATABASE_URL not found in environment variables.")
+        print(" DATABASE_URL not found in environment variables.")
 except Exception as e:
-    print(f"❌ Error creating connection pool: {e}")
+    print(f" Error creating connection pool: {e}")
 
-# ... (Keep all your functions like init_db, save_preferences exactly the same below here)
 
 def init_db():
     conn = db_pool.getconn()
@@ -44,12 +42,13 @@ def init_db():
                 monthly_day VARCHAR(50)
             )
         ''')
+        cur.execute("ALTER TABLE users ADD COLUMN IF NOT EXISTS last_active_date DATE DEFAULT CURRENT_DATE;")
         conn.commit()
         cur.close()
     except Exception as e:
         print(f"Database Init Error: {e}")
     finally:
-        db_pool.putconn(conn) # Return connection to the pool!
+        db_pool.putconn(conn) # Return connection to the pool
 
 def save_preferences(email, keywords, domain, frequency, summary_type, num_articles, top_n, schedule_time=None, schedule_day=None, monthly_week=None, monthly_day=None):
     conn = db_pool.getconn()
@@ -116,6 +115,39 @@ def delete_user_profile(email):
     except Exception as e:
         print(f"Error deleting user: {e}")
         return False
+    finally:
+        db_pool.putconn(conn)
+
+def update_last_active(email):
+    """Stamps the current date when a user logs in."""
+    conn = db_pool.getconn()
+    try:
+        cur = conn.cursor()
+        cur.execute("UPDATE users SET last_active_date = CURRENT_DATE WHERE email = %s", (email,))
+        conn.commit()
+        cur.close()
+    except Exception as e:
+        print(f"Error updating last active date: {e}")
+    finally:
+        db_pool.putconn(conn)
+
+def sweep_inactive_users(days_inactive=30):
+    """Deletes users who haven't logged in recently."""
+    conn = db_pool.getconn()
+    try:
+        cur = conn.cursor()
+        # PostgreSQL syntax to delete rows older than X days
+        cur.execute("DELETE FROM users WHERE last_active_date < CURRENT_DATE - INTERVAL '%s days'", (days_inactive,))
+        deleted_count = cur.rowcount
+        conn.commit()
+        cur.close()
+        
+        if deleted_count > 0:
+            print(f"🧹 Ghost Sweeper activated: Deleted {deleted_count} inactive accounts.")
+        return deleted_count
+    except Exception as e:
+        print(f"Error sweeping users: {e}")
+        return 0
     finally:
         db_pool.putconn(conn)
 

@@ -5,7 +5,7 @@ from datetime import datetime
 from http.server import BaseHTTPRequestHandler, HTTPServer
 from dotenv import load_dotenv
 from apscheduler.schedulers.blocking import BlockingScheduler
-from preferences import get_all_users
+from preferences import get_all_users, sweep_inactive_users
 from agent import run_news_pipeline
 from email_dispatch import send_email_digest
 
@@ -92,7 +92,11 @@ if __name__ == "__main__":
     scheduler = BlockingScheduler()
     # Check the database every 60 seconds
     scheduler.add_job(check_and_run_dispatches, 'interval', minutes=1)
-    
+    def run_daily_sweep():
+        print("\n Running daily Ghost Sweeper maintenance...")
+        sweep_inactive_users(days_inactive=30)
+        
+    scheduler.add_job(run_daily_sweep, 'cron', hour=3, minute=0)
     try:
         scheduler.start()
     except (KeyboardInterrupt, SystemExit):
