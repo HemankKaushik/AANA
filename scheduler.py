@@ -18,6 +18,22 @@ FREQUENCY_DAYS = {
     "Monthly": 30
 }
 
+def run_user_task(user, days):
+    """This runs in the background so it doesn't block the main clock."""
+    email = user["email"]
+    try:
+        articles = run_news_pipeline(
+            query=user["keywords"], domain=user["domain"],
+            days=days, num_articles=user.get("num_articles", 6),
+            top_n=user.get("top_n", 3), summary_type=user.get("summary_type", "Executive Summary")
+        )
+        if articles:
+            success = send_email_digest(email, articles)
+            if success:
+                print(f"✅ Successfully sent to {email}")
+    except Exception as e:
+        print(f"❌ Error processing user {email}: {e}")
+
 def check_and_run_dispatches():
     now = datetime.now()
     current_day = now.strftime("%A")
@@ -32,6 +48,11 @@ def check_and_run_dispatches():
     for user in users:
         email = user["email"]
         freq = user["frequency"]
+        
+        # Real-time is handled manually on the dashboard, skip it here
+        if freq == "Real-time":
+            continue
+            
         db_time = user.get("schedule_time")
         user_time_str = db_time[:5] if db_time and db_time != "None" else None
         should_run = False
@@ -42,23 +63,15 @@ def check_and_run_dispatches():
             should_run = True
 
         if should_run:
-            print(f"🚀 Trigger match found for {email}! Booting up LangGraph agent...")
-            try:
-                articles = run_news_pipeline(
-                    query=user["keywords"], domain=user["domain"],
-                    days=FREQUENCY_DAYS.get(freq, 1), num_articles=user.get("num_articles", 6),
-                    top_n=user.get("top_n", 3), summary_type=user.get("summary_type", "Executive Summary")
-                )
-                if articles:
-                    success = send_email_digest(email, articles)
-                    if success:
-                        print(f"✅ Successfully sent to {email}")
-            except Exception as e:
-                print(f"❌ Error processing user {email}: {e}")
+            print(f"🚀 Trigger match found for {email}! Spawning background thread...")
+            days = FREQUENCY_DAYS.get(freq, 1)
+            # Start a background worker immediately so the loop keeps moving instantly
+            worker = threading.Thread(target=run_user_task, args=(user, days), daemon=True)
+            worker.start()
 
-# ==========================================
-# 🛑 THE RENDER BYPASS HACK
-# ==========================================
+
+#  THE RENDER BYPASS HACK
+
 class HealthCheckHandler(BaseHTTPRequestHandler):
     def do_GET(self):
         self.send_response(200)
@@ -67,18 +80,17 @@ class HealthCheckHandler(BaseHTTPRequestHandler):
         self.wfile.write(b"AANA Scheduler is alive and running!")
 
 def start_dummy_server():
-    # Render assigns a random port. We grab it, or default to 10000.
     port = int(os.environ.get("PORT", 10000))
     server = HTTPServer(('0.0.0.0', port), HealthCheckHandler)
     server.serve_forever()
 
 if __name__ == "__main__":
-    print("🤖 Booting up dummy web server for Render...")
-    # Start the fake web server in the background
+    print("Booting up dummy web server for Render...")
     threading.Thread(target=start_dummy_server, daemon=True).start()
     
-    print("🤖 AANA Multi-User Scheduler started!")
+    print("AANA Multi-User Scheduler started! (Multi-threaded)")
     scheduler = BlockingScheduler()
+    # Check the database every 60 seconds
     scheduler.add_job(check_and_run_dispatches, 'interval', minutes=1)
     
     try:
