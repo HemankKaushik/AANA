@@ -7,19 +7,23 @@ from dotenv import load_dotenv
 load_dotenv()
 
 # ==========================================
-# 🛑 ENTERPRISE CONNECTION POOL
+# 🛑 ENTERPRISE CONNECTION POOL (FAIL-SAFE)
 # ==========================================
-# Create a global pool of reusable connections (Min 1, Max 10)
-# 10 is perfectly safe for Neon's free tier and plenty for our traffic
+# 1. Initialize it as None first so the script doesn't crash if Neon is asleep!
+db_pool = None
+
 try:
-    db_pool = psycopg2.pool.SimpleConnectionPool(
-        1, 10,
-        os.environ["DATABASE_URL"]
-    )
-    if db_pool:
+    # Use .get() so it doesn't throw a KeyError if Streamlit secrets load slightly late
+    db_url = os.environ.get("DATABASE_URL")
+    if db_url:
+        db_pool = psycopg2.pool.SimpleConnectionPool(1, 10, db_url)
         print("✅ PostgreSQL Connection pool created successfully.")
+    else:
+        print("⚠️ DATABASE_URL not found in environment variables.")
 except Exception as e:
     print(f"❌ Error creating connection pool: {e}")
+
+# ... (Keep all your functions like init_db, save_preferences exactly the same below here)
 
 def init_db():
     conn = db_pool.getconn()
